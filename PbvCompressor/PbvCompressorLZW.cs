@@ -7,7 +7,7 @@ using System.IO;
 namespace PbvCompressor
 {
     //LZW Based Decompressor - basic algorithm used as described on Mark Nelson's website  http://marknelson.us
-    class PbvCompressorLZW : ICompressorAlgorithm
+    public class PbvCompressorLZW : ICompressorAlgorithm
     {
         private const int MAX_BITS = 14; //maimxum bits allowed to read
         private const int HASH_BIT = MAX_BITS - 8; //hash bit to use with the hasing algorithm to find correct index
@@ -30,23 +30,23 @@ namespace PbvCompressor
 
         public bool Compress(string pInputFileName, string pOutputFileName)
         {
-            BinaryReader reader = null;
-            BinaryWriter writer = null;
+            Stream reader = null;
+            Stream writer = null;
 
             try
             {
                 Initialize();
-                reader = new BinaryReader(File.OpenRead(pInputFileName), Encoding.ASCII);
-                writer = new BinaryWriter(File.Create(pOutputFileName), Encoding.ASCII);
+                reader = new FileStream(pInputFileName, FileMode.Open);
+                writer = new FileStream(pOutputFileName, FileMode.Create);
                 int iNextCode = 256;
                 int iChar = 0, iString = 0, iIndex = 0;
 
                 for (int i = 0; i < TABLE_SIZE; i++) //blank out table
                     _iaCodeTable[i] = -1;
 
-                iString = reader.Read(); //get first code, will be 0-255 ascii char
+                iString = reader.ReadByte(); //get first code, will be 0-255 ascii char
 
-                while((iChar = reader.Read()) != -1) //read until we reach end of file
+                while((iChar = reader.ReadByte()) != -1) //read until we reach end of file
                 {
                     iIndex = FindMatch(iString, iChar); //get correct index for prefix+char
 
@@ -80,6 +80,8 @@ namespace PbvCompressor
             }
             finally
             {
+                if (reader != null)
+                    reader.Close();
                 if (writer != null)
                     writer.Close();
             }
@@ -110,7 +112,7 @@ namespace PbvCompressor
             }
         }
 
-        private void WriteCode(BinaryWriter pWriter, int pCode)
+        private void WriteCode(Stream pWriter, int pCode)
         {
             _iBitBuffer |= (ulong)pCode << (32 - MAX_BITS - _iBitCounter); //make space and insert new code in buffer
             _iBitCounter += MAX_BITS; //increment bit counter
@@ -118,7 +120,7 @@ namespace PbvCompressor
             while (_iBitCounter >= 8) //write all the bytes we can
             {
                 int temp = (byte)((_iBitBuffer >> 24) & 255);
-                pWriter.Write((byte)((_iBitBuffer >> 24) & 255)); //write byte from bit buffer
+                pWriter.WriteByte((byte)((_iBitBuffer >> 24) & 255)); //write byte from bit buffer
                 _iBitBuffer <<= 8; //remove written byte from buffer
                 _iBitCounter -= 8; //decrement counter
             }
@@ -126,14 +128,14 @@ namespace PbvCompressor
 
         public bool Decompress(string pInputFileName, string pOutputFileName)
         {
-            BinaryReader reader = null;
-            BinaryWriter writer = null;
+            Stream reader = null;
+            Stream writer = null;
 
             try
             {
                 Initialize();
-                reader = new BinaryReader(File.OpenRead(pInputFileName), Encoding.ASCII);
-                writer = new BinaryWriter(File.Create(pOutputFileName), Encoding.ASCII);
+                reader = new FileStream(pInputFileName, FileMode.Open);
+                writer = new FileStream(pOutputFileName, FileMode.Create);
                 int iNextCode = 256;
                 int iNewCode, iOldCode;
                 byte bChar;
@@ -142,7 +144,7 @@ namespace PbvCompressor
 
                 iOldCode = ReadCode(reader);
                 bChar = (byte)iOldCode;
-                writer.Write((byte)iOldCode); //write first byte since it is plain ascii
+                writer.WriteByte((byte)iOldCode); //write first byte since it is plain ascii
 
                 iNewCode = ReadCode(reader);
 
@@ -176,7 +178,7 @@ namespace PbvCompressor
 
                     while (iCounter >= 0) //write out decodestack
                     {
-                        writer.Write(baDecodeStack[iCounter]);
+                        writer.WriteByte(baDecodeStack[iCounter]);
                         --iCounter;
                     }
 
@@ -193,10 +195,6 @@ namespace PbvCompressor
                     iNewCode = ReadCode(reader);
                 }
             }
-            catch (System.IO.EndOfStreamException exEof)
-            {
-                writer.Close();
-            }
             catch (Exception ex)
             {
                 Console.WriteLine(ex.StackTrace);
@@ -209,12 +207,14 @@ namespace PbvCompressor
             {
                 if (reader != null)
                     reader.Close();
+                if (writer != null)
+                    writer.Close();
             }
 
             return true;
         }
 
-        private int ReadCode(BinaryReader pReader)
+        private int ReadCode(Stream pReader)
         {
             uint iReturnVal;
 

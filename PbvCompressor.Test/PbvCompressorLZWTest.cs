@@ -79,7 +79,7 @@ namespace PbvCompressor.Test
             writer.Close();
 
 
-            PbvCompressorLZW_Accessor target = new PbvCompressorLZW_Accessor(); // TODO: Initialize to an appropriate value
+            PbvCompressorLZW target = new PbvCompressorLZW(); // TODO: Initialize to an appropriate value
             string pInputFileName = originalFileName;
             string pOutputFileName = outFileName;
             bool expected = true; // TODO: Initialize to an appropriate value
